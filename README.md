@@ -1,5 +1,4 @@
-# Mahi.ai Innovations — Hāloa
-
+# Mahi.ai Innovations — E hoʻokiaʻi ʻo Hāloa
 Protecting kalo through observation, research, and community-informed technology.
 
 ## Vision
