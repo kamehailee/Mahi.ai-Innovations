@@ -44,3 +44,18 @@ GitHub Actions runs these checks on pull requests and uses a disposable PostgreS
 The API uses parameterized queries, validates input on the server, limits request size, and rejects browser writes from a different origin. If you deploy behind a reverse proxy, preserve the public scheme and host when forwarding requests. Keep the database URL server-side and use a restricted database role for the running application.
 
 The demo API has no authentication or rate limit, and the history endpoint returns all saved observations. Keep access restricted to the development environment. Before public deployment, add access controls, request throttling, and pagination. Use fictional data only.
+
+## Monitoring dashboard
+
+The journal page includes the Apple Snail Monitoring Dashboard. It reads the
+same fictional observations as the journal and updates after a successful save.
+Each loʻi summary shows total counts, survey minutes, and the number of survey
+records that counted each measure. The trend table groups observations by date
+and plot. A blank count stays unsurveyed. Zero counts contribute to coverage.
+Totals reflect recorded survey effort and should be read alongside coverage.
+
+The dashboard uses the existing same-origin observation history endpoint and
+adds no API routes, permissions, database migrations, or data collection.
+Cross-origin write checks help protect browser submissions, but the API has no
+sign-in or per-user authorization. Anyone with network access can still read and
+write demo observations. Keep access restricted and use fictional data only.

@@ -2,16 +2,8 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 
-type Observation = {
-  id: string;
-  plotId: string;
-  plot: string;
-  date: string;
-  adults: number | null;
-  eggs: number | null;
-  minutes: number;
-  notes: string;
-};
+import MonitoringDashboard from "./monitoring-dashboard";
+import { demoPlots, type Observation } from "../lib/monitoring";
 
 export default function Home() {
   const [records, setRecords] = useState<Observation[]>([]);
@@ -89,9 +81,13 @@ export default function Home() {
             Demonstration using fictional plots. Use simulated observations only.
             Saved records are available when you return to this journal.
           </p>
+          <nav aria-label="Journal sections" className="flex flex-wrap gap-4">
+            <a className="font-medium text-emerald-800 underline" href="#journal">Record an observation</a>
+            <a className="font-medium text-emerald-800 underline" href="#monitoring">Monitoring dashboard</a>
+          </nav>
         </header>
 
-        <section className="rounded-xl bg-white p-6 shadow-sm">
+        <section id="journal" className="rounded-xl bg-white p-6 shadow-sm">
           <h2 className="mb-6 text-2xl font-bold">Record an observation</h2>
 
           <form onSubmit={recordObservation}>
@@ -106,9 +102,7 @@ export default function Home() {
                   className={inputStyle}
                 >
                   <option value="">Choose a plot</option>
-                  <option value="demo-1">Demo Loʻi 1</option>
-                  <option value="demo-2">Demo Loʻi 2</option>
-                  <option value="demo-3">Demo Loʻi 3</option>
+                  {demoPlots.map(({ id, name }) => <option key={id} value={id}>{name}</option>)}
                 </select>
               </label>
 
@@ -188,6 +182,15 @@ export default function Home() {
               <p role="alert" className="mt-4 text-red-800">{saveError}</p>
             )}
           </form>
+        </section>
+
+        <section id="monitoring" aria-labelledby="monitoring-heading" className="space-y-4 rounded-xl bg-white p-6 shadow-sm">
+          <h2 id="monitoring-heading" className="text-2xl font-bold">Apple Snail Monitoring Dashboard</h2>
+          {loading ? (
+            <p role="status">Loading monitoring data…</p>
+          ) : loadError ? (
+            <p>Monitoring data is unavailable. Refresh to try again.</p>
+          ) : <MonitoringDashboard records={records} />}
         </section>
 
         <section className="space-y-4">
