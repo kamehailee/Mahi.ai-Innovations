@@ -11,18 +11,17 @@ The longer-term vision includes drone-assisted monitoring and control research, 
 
 ## Current Status
 
-Planning stage. No working application or field-validated control system is available yet.
+The Hāloa demo records and reviews apple snail observations for three fictional loʻi plots. PostgreSQL stores the history so it survives refreshes. The form keeps zero counts distinct from counts that were left blank. See the [Hāloa setup guide](haloa/README.md) to run the demo locally.
 
-The first prototype will use a fictional farm and clearly labeled simulated data. Planned features below are development goals, not completed capabilities.
+Use only simulated observations. The demo has no sign-in, and anyone who can reach it can view and add records.
 
-## First Prototype
+## Prototype Roadmap
 
-A grower will be able to:
+Planned additions include:
 
 - View a map of sample loʻi plots and water connections.
-- Record apple snail and egg-mass observations.
 - Attach photographs and note identification uncertainty.
-- Record crop damage, survey effort, and control activities.
+- Track control activities alongside observations.
 - Compare observations over time.
 - Ask an AI assistant to summarize recorded evidence and identify missing information.
 
@@ -50,7 +49,7 @@ Egg detection, adult detection, and treatment effectiveness will be evaluated se
 
 ## First Milestone
 
-Create a sample farm, record one field observation, save it to the database, and display it on the dashboard.
+The demo uses seeded fictional plots. Save an observation with an adult count of zero and a blank egg-mass count, then refresh to see both values in the journal.
 
 ## Data Stewardship
 

@@ -1,36 +1,30 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Hāloa loʻi observation journal
 
-## Getting Started
+The journal records simulated apple snail surveys for three fictional loʻi plots. It requires Node.js 20.9 or later, npm, a PostgreSQL database, and the `psql` client for the migration.
 
-First, run the development server:
+## Run locally
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+From the repository root:
+
+```sh
+cd haloa
+npm ci
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Create an empty development database named `haloa_demo`, or use a dedicated empty PostgreSQL database. Set `DATABASE_URL` in your shell to that database's connection URL. For local PostgreSQL it will typically look like `postgresql://USER:PASSWORD@localhost:5432/haloa_demo`. Next.js can also read the setting from `haloa/.env.local`; the `psql` command below needs the setting exported in your shell. Keep credentials out of Git.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```sh
+psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/migrations/001_create_observations.sql
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Apply the migration once per database. It creates both tables and seeds the three fictional plots in one transaction. Open [the local journal](http://localhost:3000). The observation history shows all plots until you select a plot in the form.
 
-## Learn More
+Use simulated records only and keep the demo on a trusted development network. Anyone who can access the app can read and add observations.
 
-To learn more about Next.js, take a look at the following resources:
+## Verify the workflow
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Run `npm run lint` and `npm run build`.
+- Select Demo Loʻi 1, enter a date, set the adult count to `0`, leave the egg-mass count blank, and enter a positive survey duration. Save and refresh. The history should show `0` and “Not surveyed.” Select Demo Loʻi 2 to verify that its history excludes the first plot’s record.
+- Try a negative or fractional count and a zero duration. The form should reject each entry. The server also validates submissions.
+- With a disposable database, fill the form, stop PostgreSQL, and submit. Verify the save error appears and the entries stay in the form.
