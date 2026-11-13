@@ -12,6 +12,10 @@ export default function Home() {
   const [loadError, setLoadError] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [role, setRole] = useState<"reader" | "editor" | null>(null);
+  const [sessionVersion, setSessionVersion] = useState(0);
+  const [sessionBusy, setSessionBusy] = useState(false);
+  const [sessionError, setSessionError] = useState("");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -19,9 +23,14 @@ export default function Home() {
     async function loadHistory() {
       try {
         const response = await fetch("/api/observations", { signal: controller.signal });
+        if (controller.signal.aborted || response.status === 401) return;
         if (!response.ok) throw new Error("Could not load history");
+        const access = response.headers.get("x-haloa-role");
         const history: Observation[] = await response.json();
-        if (!controller.signal.aborted) setRecords(history);
+        if (!controller.signal.aborted) {
+          setRecords(history);
+          setRole(access === "editor" || access === "reader" ? access : null);
+        }
       } catch {
         if (!controller.signal.aborted) {
           setLoadError("Could not load observation history. Refresh to try again.");
@@ -33,11 +42,37 @@ export default function Home() {
 
     void loadHistory();
     return () => controller.abort();
-  }, []);
+  }, [sessionVersion]);
+
+  async function changeSession(method: "POST" | "DELETE", key?: string) {
+    setSessionBusy(true);
+    setSessionError("");
+    try {
+      const response = await fetch("/api/session", {
+        method,
+        headers: key ? { "X-Haloa-Access-Key": key } : undefined,
+      });
+      if (!response.ok) {
+        const { error } = await response.json();
+        setSessionError(error);
+        return;
+      }
+      setRecords([]);
+      setRole(null);
+      setLoadError("");
+      setSaveError("");
+      setLoading(true);
+      setSessionVersion((version) => version + 1);
+    } catch {
+      setSessionError("Could not update your session. Try again.");
+    } finally {
+      setSessionBusy(false);
+    }
+  }
 
   async function recordObservation(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saving || loading) return;
+    if (saving || loading || sessionBusy || role !== "editor") return;
     const form = event.currentTarget;
     const data = new URLSearchParams();
     for (const [name, value] of new FormData(form)) {
@@ -50,6 +85,11 @@ export default function Home() {
       const response = await fetch("/api/observations", { method: "POST", body: data });
       const result = await response.json();
       if (!response.ok) {
+        if (response.status === 401) {
+          setRecords([]);
+          setRole(null);
+          setSessionError("Your session expired. Sign in again to continue.");
+        }
         setSaveError(result.error ?? "Could not save the observation. Your entries are still here.");
         return;
       }
@@ -81,17 +121,46 @@ export default function Home() {
             Demonstration using fictional plots. Use simulated observations only.
             Saved records are available when you return to this journal.
           </p>
-          <nav aria-label="Journal sections" className="flex flex-wrap gap-4">
-            <a className="font-medium text-emerald-800 underline" href="#journal">Record an observation</a>
-            <a className="font-medium text-emerald-800 underline" href="#monitoring">Monitoring dashboard</a>
-          </nav>
+          {role && (
+            <nav aria-label="Journal sections" className="flex flex-wrap gap-4">
+              <a className="font-medium text-emerald-800 underline" href="#journal">Record an observation</a>
+              <a className="font-medium text-emerald-800 underline" href="#monitoring">Monitoring dashboard</a>
+            </nav>
+          )}
+          {role && (
+            <button type="button" disabled={sessionBusy || saving} onClick={() => void changeSession("DELETE")}
+              className="rounded-lg border border-emerald-800 px-4 py-2 font-semibold">
+              Sign out
+            </button>
+          )}
+          {!role && !loading && (
+            <form method="post" action="/api/session" className="space-y-3" onSubmit={(event) => {
+              event.preventDefault();
+              const form = event.currentTarget;
+              const key = String(new FormData(form).get("key") ?? "");
+              form.reset();
+              void changeSession("POST", key);
+            }}>
+              <label className="block font-medium">
+                Demo access key
+                <input name="key" type="password" required minLength={64} maxLength={64} className={inputStyle} />
+              </label>
+              <button type="submit" disabled={sessionBusy} className="rounded-lg bg-emerald-800 px-4 py-2 font-semibold text-white">
+                Sign in
+              </button>
+            </form>
+          )}
+          {sessionError && <p role="alert" className="text-red-800">{sessionError}</p>}
+          {loading && !role && <p role="status">Checking demo access…</p>}
+          {loadError && !role && <p role="alert" className="text-red-800">{loadError}</p>}
         </header>
 
-        <section id="journal" className="rounded-xl bg-white p-6 shadow-sm">
+        <section id="journal" hidden={!role} className="rounded-xl bg-white p-6 shadow-sm">
           <h2 className="mb-6 text-2xl font-bold">Record an observation</h2>
 
           <form onSubmit={recordObservation}>
-            <fieldset disabled={saving} className="space-y-5">
+            {role === "reader" && <p className="mb-4">Your demo access is read-only.</p>}
+            <fieldset disabled={saving || sessionBusy || role !== "editor"} className="space-y-5">
               <label className="block font-medium">
                 Sample loʻi plot (required)
                 <select
@@ -184,7 +253,7 @@ export default function Home() {
           </form>
         </section>
 
-        <section id="monitoring" aria-labelledby="monitoring-heading" className="space-y-4 rounded-xl bg-white p-6 shadow-sm">
+        <section id="monitoring" hidden={!role} aria-labelledby="monitoring-heading" className="space-y-4 rounded-xl bg-white p-6 shadow-sm">
           <h2 id="monitoring-heading" className="text-2xl font-bold">Apple Snail Monitoring Dashboard</h2>
           {loading ? (
             <p role="status">Loading monitoring data…</p>
@@ -193,7 +262,7 @@ export default function Home() {
           ) : <MonitoringDashboard records={records} />}
         </section>
 
-        <section className="space-y-4">
+        <section hidden={!role} className="space-y-4">
           <h2 className="text-2xl font-bold">Observation history</h2>
           {loadError && <p role="alert" className="text-red-800">{loadError}</p>}
           {!loadError && (

@@ -1,3 +1,4 @@
+import { authorize } from "../../../server/auth.ts";
 import { Pool } from "pg";
 
 type Observation = {
@@ -12,7 +13,7 @@ type Observation = {
 };
 
 const MAX_BODY_BYTES = 32 * 1024;
-const NO_STORE = { "Cache-Control": "no-store" };
+const NO_STORE = { "Cache-Control": "private, no-store" };
 
 let pool: Pool | undefined;
 
@@ -50,7 +51,9 @@ function invalid(error: string, status = 400) {
   return Response.json({ error }, { status, headers: NO_STORE });
 }
 
-export async function GET() {
+export async function GET(request: Request) {
+  const access = authorize(request);
+  if (access instanceof Response) return access;
   try {
     const { rows } = await database().query<Observation>(`
       SELECT o.id::text, o.plot_id AS "plotId", p.name AS plot,
@@ -61,7 +64,7 @@ export async function GET() {
       JOIN loi_plots p ON p.id = o.plot_id
       ORDER BY o.id DESC
     `);
-    return Response.json(rows, { headers: NO_STORE });
+    return Response.json(rows, { headers: { ...NO_STORE, "X-Haloa-Role": access } });
   } catch {
     return Response.json(
       { error: "Observation history is unavailable. Refresh to try again." },
@@ -71,10 +74,8 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== new URL(request.url).origin) {
-    return invalid("Submit the observation from the journal site.", 403);
-  }
+  const access = authorize(request, true);
+  if (access instanceof Response) return access;
 
   const contentType = request.headers.get("content-type")
     ?.split(";")[0].trim().toLowerCase();
