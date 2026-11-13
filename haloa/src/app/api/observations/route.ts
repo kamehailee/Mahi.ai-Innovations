@@ -11,35 +11,43 @@ type Observation = {
   notes: string;
 };
 
+const MAX_BODY_BYTES = 32 * 1024;
+const NO_STORE = { "Cache-Control": "no-store" };
+
 let pool: Pool | undefined;
 
 function database() {
   const connectionString = process.env.DATABASE_URL;
   if (!connectionString) throw new Error("DATABASE_URL is missing");
   if (!pool) {
-    pool = new Pool({ connectionString, connectionTimeoutMillis: 5_000 });
+    pool = new Pool({
+      connectionString,
+      connectionTimeoutMillis: 5_000,
+      allowExitOnIdle: true,
+      statement_timeout: 5_000,
+    });
     pool.on("error", () => console.error("An idle Hāloa database connection failed."));
   }
   return pool;
 }
 
-function parseCount(value: FormDataEntryValue | null) {
+function parseCount(value: string | null) {
   if (value === "") return null;
-  if (typeof value !== "string" || !/^\d+$/.test(value)) return undefined;
+  if (value === null || !/^\d+$/.test(value)) return undefined;
   const count = Number(value);
   return count <= 2_147_483_647 ? count : undefined;
 }
 
-function validDate(value: FormDataEntryValue | null): value is string {
-  if (typeof value !== "string" || !/^(?!0000)\d{4}-\d{2}-\d{2}$/.test(value)) {
+function validDate(value: string | null): value is string {
+  if (value === null || !/^(?!0000)\d{4}-\d{2}-\d{2}$/.test(value)) {
     return false;
   }
   const date = new Date(value);
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
-function invalid(error: string) {
-  return Response.json({ error }, { status: 400 });
+function invalid(error: string, status = 400) {
+  return Response.json({ error }, { status, headers: NO_STORE });
 }
 
 export async function GET() {
@@ -53,22 +61,50 @@ export async function GET() {
       JOIN loi_plots p ON p.id = o.plot_id
       ORDER BY o.id DESC
     `);
-    return Response.json(rows, { headers: { "Cache-Control": "no-store" } });
+    return Response.json(rows, { headers: NO_STORE });
   } catch {
     return Response.json(
       { error: "Observation history is unavailable. Refresh to try again." },
-      { status: 503, headers: { "Cache-Control": "no-store" } },
+      { status: 503, headers: NO_STORE },
     );
   }
 }
 
 export async function POST(request: Request) {
-  let data: FormData;
-  try {
-    data = await request.formData();
-  } catch {
-    return invalid("Submit the observation using the journal form.");
+  const origin = request.headers.get("origin");
+  if (origin && origin !== new URL(request.url).origin) {
+    return invalid("Submit the observation from the journal site.", 403);
   }
+
+  const contentType = request.headers.get("content-type")
+    ?.split(";")[0].trim().toLowerCase();
+  if (contentType !== "application/x-www-form-urlencoded" || !request.body) {
+    return invalid("Submit the observation using the journal form.", 415);
+  }
+
+  const reader = request.body.getReader();
+  const decoder = new TextDecoder("utf-8", { fatal: true });
+  let body = "";
+  let bytes = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      bytes += value.byteLength;
+      if (bytes > MAX_BODY_BYTES) {
+        void reader.cancel().catch(() => {});
+        return invalid("This observation is too large. Shorten the field notes.", 413);
+      }
+      body += decoder.decode(value, { stream: true });
+    }
+    body += decoder.decode();
+  } catch {
+    void reader.cancel().catch(() => {});
+    return invalid("Submit the observation using the journal form.");
+  } finally {
+    reader.releaseLock();
+  }
+  const data = new URLSearchParams(body);
 
   const plot = data.get("plot");
   const date = data.get("date");
@@ -77,13 +113,13 @@ export async function POST(request: Request) {
   const minutes = parseCount(data.get("minutes"));
   const notes = data.get("notes");
 
-  if (typeof plot !== "string" || !plot) return invalid("Choose a sample loʻi plot.");
+  if (!plot) return invalid("Choose a sample loʻi plot.");
   if (!validDate(date)) return invalid("Enter a valid observation date.");
   if (adults === undefined || eggs === undefined) {
     return invalid("Enter whole counts from 0 to 2,147,483,647, or leave counts blank if not surveyed.");
   }
   if (!minutes) return invalid("Enter a whole survey duration from 1 to 2,147,483,647 minutes.");
-  if (typeof notes !== "string" || notes.length > 2000 || notes.includes("\0")) {
+  if (notes === null || notes.length > 2000 || notes.includes("\0")) {
     return invalid("Enter field notes of 2,000 characters or fewer using text only.");
   }
 
@@ -102,11 +138,11 @@ export async function POST(request: Request) {
       JOIN loi_plots p ON p.id = s.plot_id
     `, [plot, date, adults, eggs, minutes, notes]);
     if (!rows[0]) return invalid("Choose a valid sample loʻi plot.");
-    return Response.json(rows[0], { status: 201 });
+    return Response.json(rows[0], { status: 201, headers: NO_STORE });
   } catch {
     return Response.json(
       { error: "Could not confirm the save. Your entries are still here. Check the history before retrying." },
-      { status: 503 },
+      { status: 503, headers: NO_STORE },
     );
   }
 }

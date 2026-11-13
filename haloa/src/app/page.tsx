@@ -47,7 +47,10 @@ export default function Home() {
     event.preventDefault();
     if (saving || loading) return;
     const form = event.currentTarget;
-    const data = new FormData(form);
+    const data = new URLSearchParams();
+    for (const [name, value] of new FormData(form)) {
+      data.set(name, String(value));
+    }
     setSaveError("");
     setSaving(true);
 
