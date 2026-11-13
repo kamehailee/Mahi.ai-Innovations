@@ -1,0 +1,49 @@
+name: Hāloa CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: haloa
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: haloa
+          POSTGRES_PASSWORD: haloa_test
+          POSTGRES_DB: haloa_test
+        ports:
+          - 5432/tcp
+        options: >-
+          --health-cmd "pg_isready -U haloa -d haloa_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: haloa/package-lock.json
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+        env:
+          TEST_DATABASE_URL: postgresql://haloa:haloa_test@127.0.0.1:${{ job.services.postgres.ports['5432'] }}/haloa_test
+      - run: npm run build
