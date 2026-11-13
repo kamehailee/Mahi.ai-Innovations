@@ -13,7 +13,7 @@ The longer-term vision includes drone-assisted monitoring and control research, 
 
 The Hāloa demo records and reviews apple snail observations for three fictional loʻi plots. PostgreSQL stores the history so it survives refreshes. The form keeps zero counts distinct from counts that were left blank. See the [Hāloa setup guide](haloa/README.md) to run the demo locally.
 
-Use only simulated observations. The demo has no sign-in, and anyone who can reach it can view and add records.
+Use only simulated observations. A demo reader key enables viewing and an editor key enables viewing and saving. See the [Hāloa setup guide](haloa/README.md) for sign-in configuration.
 
 ## Prototype Roadmap
 
